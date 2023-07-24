@@ -622,7 +622,6 @@ module execute(input clk, input reset,
 		//r_trap <= !reset && valid && (trap || interrupt&&r_ie);
 		r_ie <= reset ? 0 : valid && (trap || interrupt&&r_ie) ? 0: r_wb_valid && (r_wb_addr == 4) ? r_wb[0] : r_ie; 
 		r_pc <= c_pc;
-		r_wb_valid <= !reset && valid && !trap && !(interrupt&&r_ie) && !store;
 		r_wdata <= (cond[0]? {(RV/8){r2[7:0]}}:r2);
 		r_branch_stall <= !reset&valid&(jmp|br&br_taken);
 	end
