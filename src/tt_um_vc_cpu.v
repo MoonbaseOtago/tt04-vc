@@ -27,7 +27,7 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 	reg r_rdone;
 	assign rdone = r_rdone;
 	reg r_wdone;
-	assign rdone = r_wdone;
+	assign wdone = r_wdone;
 	reg r_latch_lo, r_latch_hi, r_write, r_ind;
 	assign uio_oe=8'h7f;
 	assign uio_out = {4'b0000, r_latch_lo, r_latch_hi, r_write, r_ind};

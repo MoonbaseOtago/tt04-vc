@@ -455,7 +455,7 @@ module execute(input clk, input reset,
 		input br, input [2:0]cond,
 		
 		output	[RV-1:1]pc,
-		output	[RV-1:0]addr,
+		output	[RV-1:1]addr,
 		output	[RV-1:0]wdata,
 		output	[(RV/8)-1:0]wmask,
 		output			rstrobe,
@@ -466,7 +466,7 @@ module execute(input clk, input reset,
 	assign pc = r_pc;
 	assign rstrobe = r_read_stall;
 	assign wdata = r_wdata;
-	assign addr = r_wb;
+	assign addr = r_wb[RV-1:1];
 	assign  wmask = r_wmask;
 	reg [(RV/8)-1:0]r_wmask;
 	reg [RV-1:0]r_wdata;
@@ -642,7 +642,7 @@ endmodule
 module cpu(input clk, input reset_in,
 		input interrupt,
 		output [RV-1:RV/16]raddr,
-		output	[RV/32:0]rreq,
+		output	rreq,
 		input	rdone,
 		input [RV-1:0]rdata,
 		output [RV-1:RV/16]waddr,
@@ -654,6 +654,8 @@ module cpu(input clk, input reset_in,
 
 	assign raddr = rstrobe?addr[RV-1:RV/16]:pc[RV-1:RV/16];
 	assign waddr = addr[RV-1:RV/16];
+
+	assign rreq=1;
 
 
 	reg r_reset;
@@ -673,7 +675,7 @@ module cpu(input clk, input reset_in,
 	wire [RV-1:0]imm;
 
 	wire [RV-1:1]pc;
-	wire [RV-1:0]addr;
+	wire [RV-1:2]addr;
 	wire [15:0]ins;
 	wire         rstrobe;
 	generate 
