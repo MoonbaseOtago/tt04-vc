@@ -675,7 +675,7 @@ module cpu(input clk, input reset_in,
 	wire [RV-1:0]imm;
 
 	wire [RV-1:1]pc;
-	wire [RV-1:2]addr;
+	wire [RV-1:RV/16]addr;
 	wire [15:0]ins;
 	wire         rstrobe;
 	generate 
