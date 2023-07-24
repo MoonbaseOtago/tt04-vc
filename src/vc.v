@@ -151,20 +151,23 @@ module decode(input clk, input reset,
 	generate
 		if (RV == 16) begin
 			always @(*) begin
-				c_off = 'bx;
+				c_off = {RV{1'bx}};
 				case (ins[1:0]) // synthesis full_case parallel_case
 				2'b00: case (ins[15:13]) // synthesis full_case parallel_case
 				       3'b010: c_off = {{(RV-6){1'b0}}, ins[5], ins[12:10],ins[6], 1'b0};
 				       3'b011: c_off = {{(RV-5){1'b0}},         ins[12:10],ins[6], ins[5]};
 				       3'b110: c_off = {{(RV-6){1'b0}}, ins[5], ins[12:10],ins[6], 1'b0};
 				       3'b111: c_off = {{(RV-5){1'b0}},         ins[12:10],ins[6], ins[5]};
+					   default:;
 				       endcase
 				2'b10: case (ins[15:13]) // synthesis full_case parallel_case
 				       3'b010: c_off = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
 				       3'b011: c_off = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
 				       3'b110: c_off = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
 				       3'b111: c_off = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
+					   default:;
 				       endcase
+				default:;
 				endcase
 			end
 		end else begin
@@ -176,13 +179,16 @@ module decode(input clk, input reset,
 				       3'b011: c_off = {{(RV-5){1'b0}},         ins[11:10],ins[6], ins[12], ins[5]};
 				       3'b110: c_off = {{(RV-7){1'b0}}, ins[5], ins[12:10],ins[6], 2'b0};
 				       3'b111: c_off = {{(RV-5){1'b0}},         ins[11:10],ins[6], ins[12], ins[5]};
+					   default:;
 				       endcase
 				2'b10: case (ins[15:13]) // synthesis full_case parallel_case
 				       3'b010: c_off = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
 				       3'b011: c_off = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
 				       3'b110: c_off = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
 				       3'b111: c_off = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
+					   default:;
 				       endcase
+				default:;
 				endcase
 			end
 		end
@@ -196,14 +202,14 @@ module decode(input clk, input reset,
 		c_trap = 0;
 		c_load = 0;
 		c_store = 0;
-		c_cond = 2'bx;
+		c_cond = 3'bx;
 		c_needs_rs2 = 0;
 		c_op = 3'bx;
 		c_alu = 0;
-		c_rs1 = 'bx;
-		c_rs2 = 'bx;
-		c_rd = 'bx;
-		c_imm = 'bx;
+		c_rs1 = 4'bx;
+		c_rs2 = 4'bx;
+		c_rd = 4'bx;
+		c_imm = {RV{1'bx}};
 		c_jmp = 0;
 		c_br = 0;
 		case (ins[1:0])  // synthesis full_case parallel_case
@@ -214,9 +220,9 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_trap = ins[11:2]==0;
 						if (RV == 16) begin
-							c_imm = {{(RV-8){1'b0}}, ins[10:7],ins[12:11],ins[5],ins[6],1'b0};
+							c_imm = {{(RV-9){1'b0}}, ins[10:7],ins[12:11],ins[5],ins[6],1'b0};
 						end else begin
-							c_imm = {{(RV-9){1'b0}}, ins[10:7],ins[12:11],ins[5],ins[6],2'b0};
+							c_imm = {{(RV-10){1'b0}}, ins[10:7],ins[12:11],ins[5],ins[6],2'b0};
 						end
 						c_rd = {1'b1, ins[4:2]};
 						c_rs1 = 2;
@@ -261,8 +267,7 @@ module decode(input clk, input reset,
 					end
 			3'b001:	begin	// jal
 						c_br = 1;
-						c_cond[0] = 1;
-						c_cond[2] = 1;
+						c_cond = 3'b1x1;
 						c_op = `OP_ADD;
 						c_imm = {{(RV-11){ins[12]}}, ins[8], ins[10:9], ins[6],ins[7],ins[2],ins[11],ins[5:3],1'b0};			
 						c_rd = 1;
@@ -289,7 +294,7 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rd = ins[10:7];
 						c_rs1 = 0;
-						c_imm = {{(RV-16){ins[10]}}, ins[12], ins[6:2],8'b0};
+						c_imm = {{(RV-14){ins[10]}}, ins[12], ins[6:2],8'b0};
 					end
 			3'b100:	begin
 						c_rd = {1'b1, ins[9:7]};
@@ -315,17 +320,16 @@ module decode(input clk, input reset,
 					end
 			3'b101:	begin	// j
 						c_br = 1;
-						c_cond[0] = 0;
-						c_cond[2] = 1;
+						c_cond = 3'b1x0;
 						c_op = `OP_ADD;
 						c_imm = {{(RV-11){ins[12]}}, ins[8], ins[10:9], ins[6],ins[7],ins[2],ins[11],ins[5:3],1'b0};
 					end
 			3'b11?:	begin	//  beqz/bnez
 						c_br = 1;
-						c_cond = {1'b0, ins[12]};	// beqz/bnez
+						c_cond = {2'b00, ins[12]};	// beqz/bnez
 						c_op = `OP_ADD;
 						c_rs1 = {1'b1, ins[9:7]};
-						c_imm =  {{(RV-9){ins[12]}},ins[6:5],ins[2],ins[11:10],ins[4:3],1'b0};
+						c_imm =  {{(RV-8){ins[12]}},ins[6:5],ins[2],ins[11:10],ins[4:3],1'b0};
 					end
 			default: c_trap = 1;
 			endcase
@@ -406,10 +410,10 @@ module decode(input clk, input reset,
 		2'b11:	casez (ins[15:13]) // synthesis full_case parallel_case
 			3'b11?:	begin	//  bltz/bgez
 						c_br = 1;
-						c_cond = {1'b1, ins[12]};	// bltz/bgez
+						c_cond = {2'b01, ins[12]};	// bltz/bgez
 						c_rs1 = {1'b1, ins[9:7]};
 						c_op = `OP_ADD;
-						c_imm =  {{(RV-9){ins[12]}},ins[6:5],ins[2],ins[11:10],ins[4:3],1'b0};
+						c_imm =  {{(RV-8){ins[12]}},ins[6:5],ins[2],ins[11:10],ins[4:3],1'b0};
 					end
 			default: c_trap = 1;
 		    endcase
@@ -494,7 +498,7 @@ module execute(input clk, input reset,
 	4'b1101:	r1 = r_13;
 	4'b1110:	r1 = r_14;
 	4'b1111:	r1 = r_15;
-	default: r1 = 'bx;
+	default: r1 = {RV{1'bx}};
 	endcase
 
 	reg br_taken;
@@ -527,7 +531,7 @@ module execute(input clk, input reset,
 	4'b1101:	r2 = r_13;
 	4'b1110:	r2 = r_14;
 	4'b1111:	r2 = r_15;
-	default: r2 = 'bx;
+	default: r2 = {RV{1'bx}};
 	endcase
 	
 	reg [RV-1:0]sl, sra, srl;
@@ -577,7 +581,7 @@ module execute(input clk, input reset,
 	if (!reset && valid && !br && !(jmp&!link)) begin
 		r_wb_valid <= !(load&!r_read_stall || store);
 		r_wb_addr <= (reset ?0 : trap||(interrupt&r_ie) ? 3 : store? 0 : rd);
-		r_wb <= link||trap||(interrupt&r_ie)?r_pc: r_read_stall? (cond[0] ?{{(RV-8){rdata[7]}}, rdata[7:0]}:rdata):c_wb;
+		r_wb <= link||trap||(interrupt&r_ie)?{r_pc, 1'b0}: r_read_stall? (cond[0] ?{{(RV-8){rdata[7]}}, rdata[7:0]}:rdata):c_wb;
 	end else begin
 		r_wb_valid <= 0;
 	end
@@ -596,6 +600,7 @@ module execute(input clk, input reset,
 	4'b1101:	r_13 <= r_wb;
 	4'b1110:	r_14 <= r_wb;
 	4'b1111:	r_15 <= r_wb;
+	default:;
 	endcase
 
 	reg [RV-1:1 ]r_pc, c_pc;
@@ -604,8 +609,8 @@ module execute(input clk, input reset,
 	casez ({reset, r_read_stall, valid, trap, interrupt&r_ie, jmp, br&br_taken})  // synthesis full_case parallel_case
 	7'b1??????:	c_pc = 0;
 	7'b0011???:	c_pc = 2;	// 4
-	7'b00?1???:	c_pc = 4;	// 8
-	7'b001001?:	c_pc = c_wb[RV-1:1];
+	7'b00101??:	c_pc = 4;	// 8
+	7'b0010010:	c_pc = c_wb[RV-1:1];
 	7'b00100?1:	c_pc = c_wb[RV-1:1];
 	7'b0010000:	c_pc = r_pc+1;
 	7'b01?????:	c_pc = r_pc;
@@ -637,19 +642,19 @@ endmodule
 
 module cpu(input clk, input reset_in,
 		input interrupt,
-		output [RV-1:RV/8]raddr,
+		output [RV-1:RV/16]raddr,
 		output	[RV/32:0]rreq,
 		input	rdone,
 		input [RV-1:0]rdata,
-		output [RV-1:RV/8]waddr,
+		output [RV-1:RV/16]waddr,
 		output [(RV/8)-1:0]wmask,
 		output [RV-1:0]wdata,
 		input wdone);
 
 	parameter RV=16;
 
-	assign raddr = rstrobe?addr[RV-1:RV/8]:pc[RV-1:RV/8];
-	assign waddr = addr[RV-1:RV/8];
+	assign raddr = rstrobe?addr[RV-1:RV/16]:pc[RV-1:RV/16];
+	assign waddr = addr[RV-1:RV/16];
 
 
 	reg r_reset;
@@ -671,7 +676,6 @@ module cpu(input clk, input reset_in,
 	wire [RV-1:1]pc;
 	wire [RV-1:0]addr;
 	wire [15:0]ins;
-	wire [(RV/8)-1:0]wmask;
 	wire         rstrobe;
 	generate 
 		if (RV == 16) begin
