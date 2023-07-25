@@ -5,7 +5,7 @@
 //		1 	- lr  *
 //		2	- sp  *
 //		3	- epc *
-//		4   - csr * bit 0 ie
+//		4	- csr *
 //		8	- s0
 //		9	- s1
 //		10 	- a0
@@ -13,7 +13,7 @@
 //		12	- a2
 //		13	- a3
 //		14	- a4
-//		15      - a5
+//		15  - a5
 //
 //		(*) only accessable with lwsp/stsp and mv (and register specfic instructions), epc can be the source for an indirect jump
 //	
@@ -200,6 +200,7 @@ module decode(input clk, input reset,
 						c_store = 1;
 						c_cond = 3'bxx0;
 						c_op = `OP_ADD;
+						c_needs_rs2 = 1;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 					end
@@ -207,6 +208,7 @@ module decode(input clk, input reset,
 						c_store = 1;
 						c_cond = 3'bxx1;
 						c_op = `OP_ADD;
+						c_needs_rs2 = 1;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 					end
@@ -351,6 +353,7 @@ module decode(input clk, input reset,
 						c_cond[0] = 0;
 						c_rs2 = ins[10:7];
 						c_op = `OP_ADD;
+						c_needs_rs2 = 1;
 						c_rs1 = 2;
 					end
 			3'b111:	begin	// sbsp  **
@@ -358,6 +361,7 @@ module decode(input clk, input reset,
 						c_cond[0] = 1;
 						c_rs2 = ins[10:7];
 						c_rs1 = 2;
+						c_needs_rs2 = 1;
 						c_op = `OP_ADD;
 					end
 			default: c_trap = 1;
@@ -436,12 +440,12 @@ module execute(input clk, input reset,
 
 
 	reg [RV-1:0]r1, r2, r1reg;
-	reg [RV-1:0]r_8, r_9, r_10, r_11, r_12, r_13, r_14, r_15;
-	reg [RV-1:1]r_lr, r_epc, r_sp;
+	reg [RV-1:0]r_8, r_9, r_10, r_11, r_12, r_13, r_14, r_15, r_epc;
+	reg [RV-1:1]r_lr, r_sp;
 
 	always @(*) 
 	if (br) begin
-		r1 = {r_pc, 1'b0};
+		r1 = {r_pc, trap||interrupt&r_ie?r_ie:1'b0};
 	end else begin
 		r1 = r1reg;
 	end
@@ -454,7 +458,7 @@ module execute(input clk, input reset,
 	4'b0000:	r1reg = 0;
 	4'b0001:	r1reg = {r_lr, 1'b0};
 	4'b0010:	r1reg = {r_sp, 1'b0};
-	4'b0011:	r1reg = {r_epc, 1'b0};
+	4'b0011:	r1reg = r_epc;
 	4'b0100:	r1reg = {{(RV-1){1'b0}},r_ie};
 	4'b1000:	r1reg = r_8;
 	4'b1001:	r1reg = r_9;
@@ -488,7 +492,7 @@ module execute(input clk, input reset,
 	case (rs2) // synthesis full_case parallel_case
 	4'b0001:	r2 = {r_lr, 1'b0};
 	4'b0010:	r2 = {r_sp, 1'b0};
-	4'b0011:	r2 = {r_epc, 1'b0};
+	4'b0011:	r2 = r_epc;
 	4'b1000:	r2 = r_8;
 	4'b1001:	r2 = r_9;
 	4'b1010:	r2 = r_10;
@@ -524,11 +528,11 @@ module execute(input clk, input reset,
 
 	reg r_read_stall;
 	always @(posedge clk)
-		r_read_stall <= !reset && valid && load;
+		r_read_stall <= reset ? 0 : valid && load ? 1 : r_read_stall&rdone ? 0 : r_read_stall;
 
 	reg r_fetch;
 	always @(posedge clk)
-		r_fetch <= reset || (valid && (!load|r_read_stall) && !r_branch_stall);
+		r_fetch <= reset ? 1 : r_fetch ? !rdone : r_read_stall?rdone : |r_wmask?wdone : (valid && !load && !r_branch_stall && !store);
 
 	reg [RV-1:0]r_wb, c_wb;
 	reg [3:0]r_wb_addr;
@@ -548,10 +552,15 @@ module execute(input clk, input reset,
 	
 
 	always @(posedge clk)
-	if (!reset && valid && !br && !(jmp&!link)) begin
+	if (!reset && valid && !br && !(jmp&!link) && !r_read_stall) begin
 		r_wb_valid <= !(load&!r_read_stall || store);
 		r_wb_addr <= (reset ?0 : trap||(interrupt&r_ie) ? 3 : store? 0 : rd);
-		r_wb <= link||trap||(interrupt&r_ie)?{r_pc, 1'b0}: r_read_stall? (cond[0] ?{{(RV-8){rdata[7]}}, rdata[7:0]}:rdata):c_wb;
+		r_wb <= link||trap||(interrupt&r_ie)?{r_pc, 1'b0}: c_wb;
+		r_wdata <= (cond[0]? {(RV/8){r2[7:0]}}:r2);
+	end else
+	if (r_read_stall && rdone) begin
+		r_wb_valid <= 1;
+		r_wb <= (cond[0] ?{{(RV-8){rdata[7]}}, rdata[7:0]}:rdata);
 	end else begin
 		r_wb_valid <= 0;
 	end
@@ -561,7 +570,7 @@ module execute(input clk, input reset,
 	case (r_wb_addr) // synthesis full_case parallel_case
 	4'b0001:	r_lr <= r_wb[RV-1:1];
 	4'b0010:	r_sp <= r_wb[RV-1:1];
-	4'b0011:	r_epc <= r_wb[RV-1:1];
+	4'b0011:	r_epc <= r_wb;
 	4'b1000:	r_8 <= r_wb;
 	4'b1001:	r_9 <= r_wb;
 	4'b1010:	r_10 <= r_wb;
@@ -590,9 +599,8 @@ module execute(input clk, input reset,
 
 	always @(posedge clk) begin
 		//r_trap <= !reset && valid && (trap || interrupt&&r_ie);
-		r_ie <= reset ? 0 : valid && (trap || interrupt&&r_ie) ? 0: r_wb_valid && (r_wb_addr == 4) ? r_wb[0] : r_ie; 
+		r_ie <= reset ? 0 : valid && (trap || interrupt&&r_ie) ? 0: r_wb_valid && (r_wb_addr == 4) ? r_wb[0] : valid&&jmp&&rs1==3?r_epc[0] : r_ie; 
 		r_pc <= c_pc;
-		r_wdata <= (cond[0]? {(RV/8){r2[7:0]}}:r2);
 		r_branch_stall <= !reset&valid&(jmp|br&br_taken);
 	end
 
@@ -600,10 +608,10 @@ module execute(input clk, input reset,
 	generate
 		if (RV == 16) begin
 			always @(posedge clk) 
-				r_wmask <= reset||!valid||!store?0:!cond[0]? 2'b11: {c_wb[0], ~c_wb[0]};
+				r_wmask <= reset||wdone ? 0 : |r_wmask? r_wmask : !valid||!store?0: !cond[0]? 2'b11: {c_wb[0], ~c_wb[0]};
 		end else begin
 			always @(posedge clk) 
-				r_wmask <= reset||!valid||!store?0:!cond[0]? 4'b1111: {c_wb[1:0]==3, c_wb[1:0]==2, c_wb[1:0]==1, c_wb[1:0]==0};
+				r_wmask <= reset||wdone?0:|r_wmask? r_wmask :!valid||!store?0: !cond[0]? 4'b1111: {c_wb[1:0]==3, c_wb[1:0]==2, c_wb[1:0]==1, c_wb[1:0]==0};
 		end
 	endgenerate
 
@@ -683,7 +691,7 @@ module cpu(input clk, input reset_in,
 		.ifetch(ifetch),
 		.iready(iready),
 		.rstrobe(rstrobe),
-		.rdone(rdone&rstrobe),
+		.rdone(rdone),
 		.wmask(wmask),
 		.wdone(wdone),
 		.addr(addr),

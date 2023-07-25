@@ -56,7 +56,7 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 			if (rreq) begin
 				r_out <= raddr[15:8];
 				r_latch_hi <= 1;
-				r_state <= 5;
+				r_state <= 4;
 			end
 		end
 	1:	begin
@@ -70,31 +70,37 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 			r_out <= wmask[0]?wdata[7:0]:wdata[15:8];
 			r_latch_lo <= 0;
 			r_write <= 1;
-			r_state <= (wmask==2'b11 ?3:0);
+			r_state <= (wmask==2'b11 ?3:7);
 			r_wdone <= wmask!=2'b11;
 		end
 	3:	begin
 			r_out <= wdata[15:8];
 			r_ind <= 1;
 			r_write <= 1;
-			r_state <= 0;
 			r_wdone <= 1;
+			r_state <= 7;
 		end
-	5:	begin
+	4:	begin
 			r_out <= {raddr[7:1], 1'bx};
 			r_latch_hi <= 0;
 			r_latch_lo <= 1;
-			r_state <= 6;
+			r_state <= 5;
 		end
-	6:	begin
+	5:	begin
 			r_in[7:0] <= ui_in;
 			r_latch_lo <= 0;
 			r_ind <= 1;
+			r_state <= 6;
+		end
+	6:	begin
+			r_in[15:8] <= ui_in;
+			r_rdone <= 1;
 			r_state <= 7;
 		end
 	7:	begin
-			r_in[15:8] <= ui_in;
-			r_rdone <= 1;
+			r_rdone <= 0;
+			r_wdone <= 0;
+			r_write <= 0;
 			r_state <= 0;
 		end
 	endcase
