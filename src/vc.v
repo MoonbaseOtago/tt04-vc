@@ -185,27 +185,27 @@ module decode(input clk, input reset,
 			3'b010: begin 	// lw
 						c_load = 1;
 						c_op = `OP_ADD;
-						c_cond[0] = 0;
+						c_cond = 3'bxx0;
 						c_rd = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 				    end
 			3'b011: begin 	// lb
 						c_load = 1;
 						c_op = `OP_ADD;
-						c_cond[0] = 1;
+						c_cond = 3'bxx1;
 						c_rd = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 					end
 			3'b110: begin 	// sw
 						c_store = 1;
-						c_cond[0] = 0;
+						c_cond = 3'bxx0;
 						c_op = `OP_ADD;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 					end
 			3'b111: begin 	// sb
 						c_store = 1;
-						c_cond[0] = 1;
+						c_cond = 3'bxx1;
 						c_op = `OP_ADD;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
@@ -435,40 +435,45 @@ module execute(input clk, input reset,
 	wire link = ((br&cond[2])||jmp)&cond[0];
 
 
-	reg [RV-1:0]r1, r2;
-	reg [RV-1:0]r_lr, r_sp, r_epc, r_8, r_9, r_10, r_11, r_12, r_13, r_14, r_15;
+	reg [RV-1:0]r1, r2, r1reg;
+	reg [RV-1:0]r_8, r_9, r_10, r_11, r_12, r_13, r_14, r_15;
+	reg [RV-1:1]r_lr, r_epc, r_sp;
 
 	always @(*) 
 	if (br) begin
 		r1 = {r_pc, 1'b0};
-	end else
+	end else begin
+		r1 = r1reg;
+	end
+
+	always @(*)
 	if (rs1 == r_wb_addr) begin
-		r1 = r_wb;
+		r1reg = r_wb;
 	end else
 	case (rs1) // synthesis full_case parallel_case
-	4'b0000:	r1 = 0;
-	4'b0001:	r1 = r_lr;
-	4'b0010:	r1 = r_sp;
-	4'b0011:	r1 = r_epc;
-	4'b0100:	r1 = {{(RV-1){1'b0}},r_ie};
-	4'b1000:	r1 = r_8;
-	4'b1001:	r1 = r_9;
-	4'b1010:	r1 = r_10;
-	4'b1011:	r1 = r_11;
-	4'b1100:	r1 = r_12;
-	4'b1101:	r1 = r_13;
-	4'b1110:	r1 = r_14;
-	4'b1111:	r1 = r_15;
-	default: r1 = {RV{1'bx}};
+	4'b0000:	r1reg = 0;
+	4'b0001:	r1reg = {r_lr, 1'b0};
+	4'b0010:	r1reg = {r_sp, 1'b0};
+	4'b0011:	r1reg = {r_epc, 1'b0};
+	4'b0100:	r1reg = {{(RV-1){1'b0}},r_ie};
+	4'b1000:	r1reg = r_8;
+	4'b1001:	r1reg = r_9;
+	4'b1010:	r1reg = r_10;
+	4'b1011:	r1reg = r_11;
+	4'b1100:	r1reg = r_12;
+	4'b1101:	r1reg = r_13;
+	4'b1110:	r1reg = r_14;
+	4'b1111:	r1reg = r_15;
+	default:	r1reg = {RV{1'bx}};
 	endcase
 
 	reg br_taken;
 	always @(*) begin
 		casez (cond)  // synthesis full_case parallel_case
-		3'b0_00:	br_taken = r1 == 0;	// beqz
-		3'b0_01:	br_taken = r1 != 0;	// bnez
-		3'b0_10:	br_taken = !r1[RV-1];// bgez
-		3'b0_11:	br_taken = r1[RV-1];// bltz
+		3'b0_00:	br_taken = r1reg == 0;	// beqz
+		3'b0_01:	br_taken = r1reg != 0;	// bnez
+		3'b0_10:	br_taken = !r1reg[RV-1];// bgez
+		3'b0_11:	br_taken = r1reg[RV-1]; // bltz
 		3'b1_??:	br_taken = 1;
 		endcase
 	end
@@ -481,9 +486,9 @@ module execute(input clk, input reset,
 		r2 = r_wb;
 	end else
 	case (rs2) // synthesis full_case parallel_case
-	4'b0001:	r2 = r_lr;
-	4'b0010:	r2 = r_sp;
-	4'b0011:	r2 = r_epc;
+	4'b0001:	r2 = {r_lr, 1'b0};
+	4'b0010:	r2 = {r_sp, 1'b0};
+	4'b0011:	r2 = {r_epc, 1'b0};
 	4'b1000:	r2 = r_8;
 	4'b1001:	r2 = r_9;
 	4'b1010:	r2 = r_10;
@@ -554,9 +559,9 @@ module execute(input clk, input reset,
 	always @(posedge clk)
 	if (r_wb_valid)
 	case (r_wb_addr) // synthesis full_case parallel_case
-	4'b0001:	r_lr <= r_wb;
-	4'b0010:	r_sp <= r_wb;
-	4'b0011:	r_epc <= r_wb;
+	4'b0001:	r_lr <= r_wb[RV-1:1];
+	4'b0010:	r_sp <= r_wb[RV-1:1];
+	4'b0011:	r_epc <= r_wb[RV-1:1];
 	4'b1000:	r_8 <= r_wb;
 	4'b1001:	r_9 <= r_wb;
 	4'b1010:	r_10 <= r_wb;
