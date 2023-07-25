@@ -19,16 +19,15 @@ module tb ();
     // wire up the inputs and outputs
     reg  clk;
     reg  rst_n;
-    reg  ena;
-    reg  [7:0] ui_in;
-    reg  [7:0] uio_in;
+    wire  ena=1;
+    wire  [7:0] ui_in;
+    wire  [7:0] uio_in;
 
-    wire [6:0] segments = uo_out[6:0];
     wire [7:0] uo_out;
     wire [7:0] uio_out;
     wire [7:0] uio_oe;
 
-    tt_um_seven_segment_seconds tt_um_seven_segment_seconds (
+    tt_um_vc_cpu tt_um_vc_cpu (
     // include power ports for the Gate Level test
     `ifdef GL_TEST
         .VPWR( 1'b1),
@@ -43,5 +42,45 @@ module tb ();
         .clk        (clk),      // clock
         .rst_n      (rst_n)     // not reset
         );
+
+	reg [7:0]m[0:4096];
+
+	initial begin
+`include "./init.v"
+	end
+
+	wire ind = uio_out[0];
+	wire write = uio_out[1];
+	wire latch_hi = uio_out[2];
+	wire latch_lo = uio_out[3];
+	assign uio_in[7] = 0; // interrupt
+
+	reg [15:8]addrhi;
+	reg [7:1]addrlo;
+
+	assign ui_in = m[{addrhi, addrlo, ind}];
+
+	always @(negedge clk)
+	if (latch_hi) 
+		addrhi <= uo_out;
+	always @(negedge clk)
+	if (latch_lo) 
+		addrlo <= uo_out[7:1];
+	always @(posedge clk)
+	if (write) 
+		m[{addrhi, addrlo, ind}] <= uo_out;
+
+`ifdef XTEST
+	initial begin
+		rst_n = 0;
+		clk=0; #5 clk=1; #5;
+		clk=0; #5 clk=1; #5;
+		rst_n = 1;
+		forever begin clk=0; #5 clk=1; #5; end
+	end
+	initial begin
+		#10000;$finish;
+	end
+`endif
 
 endmodule

@@ -60,10 +60,11 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 			end
 		end
 	1:	begin
-			r_out <= {waddr[7:1], ~wmask[0]};
-			r_state <= 2;
+			r_out <= {waddr[7:1], 1'bx};
 			r_latch_hi <= 0;
 			r_latch_lo <= 1;
+			r_ind <= ~wmask[0];
+			r_state <= 2;
 		end
 	2:	begin
 			r_out <= wmask[0]?wdata[7:0]:wdata[15:8];
@@ -80,13 +81,14 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 			r_wdone <= 1;
 		end
 	5:	begin
-			r_out <= {raddr[7:1], 1'b0};
+			r_out <= {raddr[7:1], 1'bx};
 			r_latch_hi <= 0;
 			r_latch_lo <= 1;
 			r_state <= 6;
 		end
 	6:	begin
 			r_in[7:0] <= ui_in;
+			r_latch_lo <= 0;
 			r_ind <= 1;
 			r_state <= 7;
 		end

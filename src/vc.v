@@ -57,56 +57,6 @@
 //		
 
 
-`ifdef NOTDEF
-module	mem(
-	input clk,
-	input [RV-1:RV/16]raddr,
-	output [RV-1:0]rdata,
-	input [RV-1:RV/16]waddr,
-	input [(RV/8)-1:0]wmask,
-	input [RV-1:0]wdata);
-
-	parameter RV=32;
-	parameter MSIZE=4096;
-
-	reg [RV-1:0]m[0:MSIZE-1];
-	assign rdata = m[raddr];
-
-
-	reg [RV-1:0]w;
-	wire [RV-1:0]w1;
-
-	assign w1 = m[waddr];
-
-	initial begin
-`include "asm/a.out"
-	end
-
-	generate
-	
-		if (RV==16) begin 
-			always @(*) begin
-				w[15:8] = wmask[1]?wdata[15:8]:w1[15:8];
-				w[7:0] = wmask[0]?wdata[7:0]:w1[7:0];
-			end
-		end else begin
-			always @(*) begin
-				w[31:24] = wmask[3]?wdata[31:24]:w1[31:24];
-				w[23:16] = wmask[2]?wdata[23:16]:w1[23:16];
-				w[15:8] = wmask[1]?wdata[15:8]:w1[15:8];
-				w[7:0] = wmask[0]?wdata[7:0]:w1[7:0];
-			end
-		end
-	
-	endgenerate
-
-	always @(posedge clk)
-	if (|wmask)
-		m[waddr] <= w;
-
-endmodule
-`endif
-
 `define OP_ADD	0
 `define OP_SUB	1
 `define OP_XOR	2
@@ -118,7 +68,9 @@ endmodule
 
 module decode(input clk, input reset,
 	    input [15:0]ins, 
+		input rdone,
 
+		output iready,
 		output jmp,
 		output br, 
 		output [2:0]cond,
@@ -133,6 +85,9 @@ module decode(input clk, input reset,
 
 	parameter RV=32;	// register width
 
+	reg		r_ready; assign iready = r_ready;
+	always @(posedge clk)
+		r_ready <= rdone&!reset;
 	reg		r_trap, c_trap; assign trap = r_trap;
 	reg		r_load, c_load; assign load = r_load;
 	reg		r_store, c_store; assign store = r_store;
@@ -420,7 +375,8 @@ module decode(input clk, input reset,
 		endcase
 	end
 
-	always @(posedge clk) begin
+	always @(posedge clk) 
+	if (rdone) begin
 		r_trap <= c_trap;
 		r_rs1 <= c_rs1;
 		r_rs2 <= c_rs2;
@@ -454,17 +410,22 @@ module execute(input clk, input reset,
 		input   jmp, 
 		input br, input [2:0]cond,
 		
+		input	iready,
 		output	[RV-1:1]pc,
 		output	[RV-1:1]addr,
 		output	[RV-1:0]wdata,
+		input			wdone,
 		output	[(RV/8)-1:0]wmask,
-		output			rstrobe,
+		output			rstrobe,	
+		output			ifetch,	
+		input			rdone,
 		input	[RV-1:0]rdata
 	);
 	parameter RV=32;
 
 	assign pc = r_pc;
 	assign rstrobe = r_read_stall;
+	assign ifetch = r_fetch;
 	assign wdata = r_wdata;
 	assign addr = r_wb[RV-1:1];
 	assign  wmask = r_wmask;
@@ -554,11 +515,15 @@ module execute(input clk, input reset,
 	endgenerate
 
 	reg r_branch_stall;
-	wire valid = !reset && !r_branch_stall;
+	wire valid = !reset && !r_branch_stall && iready;
 
 	reg r_read_stall;
 	always @(posedge clk)
-		r_read_stall <= !reset && load;
+		r_read_stall <= !reset && valid && load;
+
+	reg r_fetch;
+	always @(posedge clk)
+		r_fetch <= reset || (valid && (!load|r_read_stall) && !r_branch_stall);
 
 	reg [RV-1:0]r_wb, c_wb;
 	reg [3:0]r_wb_addr;
@@ -654,8 +619,8 @@ module cpu(input clk, input reset_in,
 
 	assign raddr = rstrobe?addr[RV-1:RV/16]:pc[RV-1:RV/16];
 	assign waddr = addr[RV-1:RV/16];
-
-	assign rreq=1;
+	
+	assign rreq=ifetch|rstrobe;
 
 
 	reg r_reset;
@@ -678,6 +643,8 @@ module cpu(input clk, input reset_in,
 	wire [RV-1:RV/16]addr;
 	wire [15:0]ins;
 	wire         rstrobe;
+	wire		 iready;
+	wire		 ifetch;
 	generate 
 		if (RV == 16) begin
 			assign ins = rdata;
@@ -689,6 +656,8 @@ module cpu(input clk, input reset_in,
 
 	decode #(.RV(RV))dec(.clk(clk), .reset(r_reset),
 		.ins(ins),
+		.iready(iready),
+		.rdone(rdone&!rstrobe),
 		.jmp(jmp),
 		.br(br),
 		.cond(cond),
@@ -706,8 +675,12 @@ module cpu(input clk, input reset_in,
 	execute #(.RV(RV))ex(.clk(clk), .reset(r_reset),
 		.interrupt(interrupt),
 		.pc(pc),
+		.ifetch(ifetch),
+		.iready(iready),
 		.rstrobe(rstrobe),
+		.rdone(rdone&rstrobe),
 		.wmask(wmask),
+		.wdone(wdone),
 		.addr(addr),
 		.wdata(wdata),
 		.rdata(rdata),
