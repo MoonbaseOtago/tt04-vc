@@ -511,7 +511,7 @@ module execute(input clk, input reset,
 	always @(*)
 	case (op) // synthesis full_case parallel_case
 	`OP_ADD:	c_wb = r1 + r2;
-	`OP_SUB:	c_wb = r1 + ~r2 + 1;
+	`OP_SUB:	c_wb = r1 - r2;
 	`OP_XOR:	c_wb = r1 ^ r2;
 	`OP_OR:		c_wb = r1 | r2;
 	`OP_AND:	c_wb = r1 & r2;
