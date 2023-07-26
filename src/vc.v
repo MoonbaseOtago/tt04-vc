@@ -102,57 +102,6 @@ module decode(input clk, input reset,
 	reg		r_needs_rs2, c_needs_rs2; assign needs_rs2 = r_needs_rs2;
 	reg[RV-1:0]r_imm, c_imm; assign imm = r_imm;
 
-	reg [RV-1:0]c_off;
-	generate
-		if (RV == 16) begin
-			always @(*) begin
-				c_off = {RV{1'bx}};
-				case (ins[1:0]) // synthesis full_case parallel_case
-				2'b00: case (ins[15:13]) // synthesis full_case parallel_case
-				       3'b010: c_off = {{(RV-6){1'b0}}, ins[5], ins[12:10],ins[6], 1'b0};
-				       3'b011: c_off = {{(RV-5){1'b0}},         ins[12:10],ins[6], ins[5]};
-				       3'b110: c_off = {{(RV-6){1'b0}}, ins[5], ins[12:10],ins[6], 1'b0};
-				       3'b111: c_off = {{(RV-5){1'b0}},         ins[12:10],ins[6], ins[5]};
-					   default:;
-				       endcase
-				2'b10: case (ins[15:13]) // synthesis full_case parallel_case
-				       3'b010: c_off = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
-				       3'b011: c_off = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
-				       3'b110: c_off = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
-				       3'b111: c_off = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
-					   default:;
-				       endcase
-				default:;
-				endcase
-			end
-		end else begin
-			always @(*) begin
-				c_off = 'bx;
-				case (ins[1:0]) // synthesis full_case parallel_case
-				2'b00: case (ins[15:13]) // synthesis full_case parallel_case
-				       3'b010: c_off = {{(RV-7){1'b0}}, ins[5], ins[12:10],ins[6], 2'b0};
-				       3'b011: c_off = {{(RV-5){1'b0}},         ins[11:10],ins[6], ins[12], ins[5]};
-				       3'b110: c_off = {{(RV-7){1'b0}}, ins[5], ins[12:10],ins[6], 2'b0};
-				       3'b111: c_off = {{(RV-5){1'b0}},         ins[11:10],ins[6], ins[12], ins[5]};
-					   default:;
-				       endcase
-				2'b10: case (ins[15:13]) // synthesis full_case parallel_case
-				       3'b010: c_off = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
-				       3'b011: c_off = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
-				       3'b110: c_off = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
-				       3'b111: c_off = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
-					   default:;
-				       endcase
-				default:;
-				endcase
-			end
-		end
-	endgenerate
-
-
-
-	
-
 	always @(*) begin
 		c_trap = 0;
 		c_load = 0;
@@ -188,6 +137,11 @@ module decode(input clk, input reset,
 						c_cond = 3'bxx0;
 						c_rd = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
+						if (RV==16) begin
+							c_imm = {{(RV-6){1'b0}}, ins[5], ins[12:10],ins[6], 1'b0};
+						end else begin
+							c_imm = {{(RV-7){1'b0}}, ins[5], ins[12:10],ins[6], 2'b0};
+						end
 				    end
 			3'b011: begin 	// lb
 						c_load = 1;
@@ -195,6 +149,11 @@ module decode(input clk, input reset,
 						c_cond = 3'bxx1;
 						c_rd = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
+						if (RV==16) begin
+							c_imm = {{(RV-5){1'b0}},         ins[12:10],ins[6], ins[5]};
+						end else begin
+							c_imm = {{(RV-5){1'b0}},         ins[11:10],ins[6], ins[12], ins[5]};
+						end
 					end
 			3'b110: begin 	// sw
 						c_store = 1;
@@ -202,6 +161,11 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
+						if (RV==16) begin
+							c_imm = {{(RV-6){1'b0}}, ins[5], ins[12:10],ins[6], 1'b0};
+						end else begin
+							c_imm = {{(RV-7){1'b0}}, ins[5], ins[12:10],ins[6], 2'b0};
+						end
 					end
 			3'b111: begin 	// sb
 						c_store = 1;
@@ -209,6 +173,11 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
+						if (RV==16) begin
+							c_imm = {{(RV-5){1'b0}},         ins[12:10],ins[6], ins[5]};
+						end else begin
+							c_imm = {{(RV-5){1'b0}},         ins[11:10],ins[6], ins[12], ins[5]};
+						end
 					end
 			default: c_trap = 1;
 			endcase
@@ -303,6 +272,11 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rd = ins[10:7];
 						c_rs1 = 2;
+						if (RV == 16) begin
+							c_imm = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
+						end else begin
+							c_imm = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
+						end
 					end
 			3'b011:	begin	// lbsp  **
 						c_load = 1;
@@ -310,6 +284,11 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rd = ins[10:7];
 						c_rs1 = 2;
+						if (RV == 16) begin
+							c_imm = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
+						end else begin
+							c_imm = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
+						end
 					end
 			3'b100:	if (!ins[12]) begin
 						if (ins[6:2] == 0) begin	// jr
@@ -352,6 +331,11 @@ module decode(input clk, input reset,
 						c_rs2 = ins[10:7];
 						c_op = `OP_ADD;
 						c_rs1 = 2;
+						if (RV == 16) begin
+							c_imm = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
+						end else begin
+							c_imm = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
+						end
 					end
 			3'b111:	begin	// sbsp  **
 						c_store = 1;
@@ -359,6 +343,11 @@ module decode(input clk, input reset,
 						c_rs2 = ins[10:7];
 						c_rs1 = 2;
 						c_op = `OP_ADD;
+						if (RV == 16) begin
+							c_imm = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
+						end else begin
+							c_imm = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
+						end
 					end
 			default: c_trap = 1;
 			endcase
@@ -382,7 +371,7 @@ module decode(input clk, input reset,
 		r_rs2 <= c_rs2;
 		r_needs_rs2 <= c_needs_rs2;
 		r_rd <= c_rd;
-		r_imm <= (c_load||c_store?c_off:c_imm);
+		r_imm <= c_imm;
 		r_store <= c_store;
 		r_load <= c_load;
 		r_alu <= c_alu;
