@@ -200,7 +200,6 @@ module decode(input clk, input reset,
 						c_store = 1;
 						c_cond = 3'bxx0;
 						c_op = `OP_ADD;
-						c_needs_rs2 = 1;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 					end
@@ -208,7 +207,6 @@ module decode(input clk, input reset,
 						c_store = 1;
 						c_cond = 3'bxx1;
 						c_op = `OP_ADD;
-						c_needs_rs2 = 1;
 						c_rs2 = {1'b1, ins[4:2]};
 						c_rs1 = {1'b1, ins[9:7]};
 					end
@@ -317,7 +315,7 @@ module decode(input clk, input reset,
 						if (ins[6:2] == 0) begin	// jr
 							c_jmp = 1;
 							c_op = `OP_ADD;
-							c_cond[0] = 0;
+							c_cond = 3'bxx0;
 							c_rs1 = ins[10:7];
 							c_rs2 = 0;
 							c_needs_rs2 = 1;
@@ -333,7 +331,7 @@ module decode(input clk, input reset,
 						if (ins[6:2] == 0) begin	// jalr
 							c_trap = ins[10:7]==0; // ebreak
 							c_jmp = 1;
-							c_cond[0] = 1;
+							c_cond = 3'bxx1;
 							c_op = `OP_ADD;
 							c_rd = 1;
 							c_rs1 = ins[10:7];
@@ -353,7 +351,6 @@ module decode(input clk, input reset,
 						c_cond[0] = 0;
 						c_rs2 = ins[10:7];
 						c_op = `OP_ADD;
-						c_needs_rs2 = 1;
 						c_rs1 = 2;
 					end
 			3'b111:	begin	// sbsp  **
@@ -361,7 +358,6 @@ module decode(input clk, input reset,
 						c_cond[0] = 1;
 						c_rs2 = ins[10:7];
 						c_rs1 = 2;
-						c_needs_rs2 = 1;
 						c_op = `OP_ADD;
 					end
 			default: c_trap = 1;
@@ -436,10 +432,10 @@ module execute(input clk, input reset,
 	reg [(RV/8)-1:0]r_wmask;
 	reg [RV-1:0]r_wdata;
 
-	wire link = ((br&cond[2])||jmp)&cond[0];
+	wire link = ((br&&cond[2])||jmp)&cond[0];
 
 
-	reg [RV-1:0]r1, r2, r1reg;
+	reg [RV-1:0]r1, r2, r1reg, r2reg;
 	reg [RV-1:0]r_8, r_9, r_10, r_11, r_12, r_13, r_14, r_15, r_epc;
 	reg [RV-1:1]r_lr, r_sp;
 
@@ -451,7 +447,7 @@ module execute(input clk, input reset,
 	end
 
 	always @(*)
-	if (rs1 == r_wb_addr) begin
+	if (rs1 == r_wb_addr && r_wb_addr!=0) begin
 		r1reg = r_wb;
 	end else
 	case (rs1) // synthesis full_case parallel_case
@@ -485,23 +481,28 @@ module execute(input clk, input reset,
 	always @(*) 
 	if (!needs_rs2) begin
 		r2 = imm;
-	end else
-	if (rs2 == r_wb_addr) begin
-		r2 = r_wb;
+	end else begin
+		r2 = r2reg;
+	end
+	
+	always @(*) 
+	if (rs2 == r_wb_addr && r_wb_addr !=0) begin
+		r2reg = r_wb;
 	end else
 	case (rs2) // synthesis full_case parallel_case
-	4'b0001:	r2 = {r_lr, 1'b0};
-	4'b0010:	r2 = {r_sp, 1'b0};
-	4'b0011:	r2 = r_epc;
-	4'b1000:	r2 = r_8;
-	4'b1001:	r2 = r_9;
-	4'b1010:	r2 = r_10;
-	4'b1011:	r2 = r_11;
-	4'b1100:	r2 = r_12;
-	4'b1101:	r2 = r_13;
-	4'b1110:	r2 = r_14;
-	4'b1111:	r2 = r_15;
-	default: r2 = {RV{1'bx}};
+	4'b0000:	r2reg = 0;
+	4'b0001:	r2reg = {r_lr, 1'b0};
+	4'b0010:	r2reg = {r_sp, 1'b0};
+	4'b0011:	r2reg = r_epc;
+	4'b1000:	r2reg = r_8;
+	4'b1001:	r2reg = r_9;
+	4'b1010:	r2reg = r_10;
+	4'b1011:	r2reg = r_11;
+	4'b1100:	r2reg = r_12;
+	4'b1101:	r2reg = r_13;
+	4'b1110:	r2reg = r_14;
+	4'b1111:	r2reg = r_15;
+	default: r2reg = {RV{1'bx}};
 	endcase
 	
 	reg [RV-1:0]sl, sra, srl;
@@ -552,11 +553,11 @@ module execute(input clk, input reset,
 	
 
 	always @(posedge clk)
-	if (!reset && valid && !br && !(jmp&!link) && !r_read_stall) begin
+	if (!reset && valid && !((br|jmp)&!link) && !r_read_stall) begin
 		r_wb_valid <= !(load&!r_read_stall || store);
 		r_wb_addr <= (reset ?0 : trap||(interrupt&r_ie) ? 3 : store? 0 : rd);
-		r_wb <= link||trap||(interrupt&r_ie)?{r_pc, 1'b0}: c_wb;
-		r_wdata <= (cond[0]? {(RV/8){r2[7:0]}}:r2);
+		r_wb <= link||trap||(interrupt&r_ie)?{pc_plus_1, r_ie}: c_wb;
+		r_wdata <= (cond[0]? {(RV/8){r2reg[7:0]}}:r2reg);
 	end else
 	if (r_read_stall && rdone) begin
 		r_wb_valid <= 1;
@@ -583,6 +584,8 @@ module execute(input clk, input reset,
 	endcase
 
 	reg [RV-1:1 ]r_pc, c_pc;
+	wire [RV-1:1 ]pc_plus_1 = r_pc+1;
+
 
 	always @(*)
 	casez ({reset, r_read_stall, valid, trap, interrupt&r_ie, jmp, br&br_taken})  // synthesis full_case parallel_case
@@ -591,7 +594,7 @@ module execute(input clk, input reset,
 	7'b00101??:	c_pc = 4;	// 8
 	7'b0010010:	c_pc = c_wb[RV-1:1];
 	7'b00100?1:	c_pc = c_wb[RV-1:1];
-	7'b0010000:	c_pc = r_pc+1;
+	7'b0010000:	c_pc = pc_plus_1;
 	7'b01?????:	c_pc = r_pc;
 	7'b000????:	c_pc = r_pc;
 	default:	c_pc = r_pc;

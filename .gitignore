@@ -7,3 +7,7 @@ src/sim_build
 src/__pycache__/
 src/results.xml
 src/user_config.tcl
+src/*.swp
+src/a.out
+src/vcd_autosave.sav
+
