@@ -124,9 +124,9 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_trap = ins[11:2]==0;
 						if (RV == 16) begin
-							c_imm = {{(RV-9){1'b0}}, ins[10:7],ins[12:11],ins[5],ins[6],1'b0};
+							c_imm = {{(RV-9){1'b0}}, ins[9:7],ins[5],ins[12:10],ins[6],1'b0};
 						end else begin
-							c_imm = {{(RV-10){1'b0}}, ins[10:7],ins[12:11],ins[5],ins[6],2'b0};
+							c_imm = {{(RV-10){1'b0}}, ins[9:7],ins[5],ins[12:10],ins[6],2'b0};
 						end
 						c_rd = {1'b1, ins[4:2]};
 						c_rs1 = 2;

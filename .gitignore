@@ -10,4 +10,7 @@ src/user_config.tcl
 src/*.swp
 src/a.out
 src/vcd_autosave.sav
+asm/a.out
+asm/*.tab.c
+asm/vcasm
 
