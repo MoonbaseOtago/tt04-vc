@@ -67,8 +67,16 @@ module tb ();
 	if (latch_lo) 
 		addrlo <= uo_out[7:1];
 	always @(posedge clk)
-	if (write) 
+	if (write && (addrhi!=8'hff || addrlo != 7'h7f)) 
 		m[{addrhi, addrlo, ind}] <= uo_out;
+
+	wire log = write && addrhi==8'hff && addrlo == 7'h7f && ind;
+    	reg [7:0]byte0;
+    	always @(posedge clk)
+    	if (write && addrhi==8'hff && addrlo == 7'h7f && !ind)
+		byte0 <= uo_out;
+	wire [15:0]log_out = {uo_out, byte0};
+
 
 `ifdef XTEST
 	initial begin

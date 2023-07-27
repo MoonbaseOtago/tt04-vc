@@ -1,35 +1,114 @@
 ![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg)
 
-# What is Tiny Tapeout?
+# VC - a RISC-V C native ISA
 
-TinyTapeout is an educational project that aims to make it easier and cheaper than ever to get your digital designs manufactured on a real chip!
+This project is essentially a what-if - What if the RISC-V compressed instruction set was a self
+contained ISA of its own? a bit like an ARM thumb native chip.
 
-Go to https://tinytapeout.com for instructions!
+This CPU is a quick and dirty chip for Tiny Tapeout, it's not optimised for speed or size.
 
-## How to change the Wokwi project
+This spec is for two variants:
+- a 16-bit chip (built here for TT)
+- a 32-bit chip - essentially 32-bit registers, with minor changes to offsets in lw/sw/etc to 4 bytes
 
-Edit the [info.yaml](info.yaml) and change the wokwi_id to match your project.
+## Architecture
 
-## How to enable the GitHub actions to build the ASIC files
+This chip has 8 general purpose registers: s0,s1,a0,a1,a2,a3,a4,a5. And 4 special purpose oness: lr, sp, epc, csr.
 
-Please see the instructions for:
+All instructions can access the general purpose registers, only some can access the special purpose ones, in particular:
+- mv rm, rm 
+- lw/sw rm, off(sp)
+- jr rm
+- lr is written by jal/jalr
+- sp is used by load/store to sp, add to sp, and lea
+- epc is set by traps
+- csr currently only contains an interrupt enable bit, set/cleared when epc is used
 
-- [Enabling GitHub Actions](https://tinytapeout.com/faq/#when-i-commit-my-change-the-gds-action-isnt-running)
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+## traps/interrupts
 
-## How does it work?
+Reset sets the PC to 0, traps (currently invalid instruction, ebreak) jump to 4, interrupts (with interrupts enabled) jump to 8.
 
-When you edit the info.yaml to choose a different ID, the [GitHub Action](.github/workflows/gds.yaml) will fetch the digital netlist of your design from Wokwi.
+traps and interrupts save the next PC in EPC and clear the IE flag, the old IE flag is saved in EPC[0]. jr epc executes a return from interrupt/exception, IE is restored from EPC[0]. IE can be set/cleared by writing
+a new value to csr[0].
 
-After that, the action uses the open source ASIC tool called [OpenLane](https://www.zerotoasiccourse.com/terminology/openlane/) to build the files needed to fabricate an ASIC.
+An ISR might execute something like:
 
-## Resources
+        add   sp, -4
+        sw    epc, (sp)
+	.... handle interrupt, maybe turn interrupts on while processing
+	lw    epc, (sp)		
+	add   sp, 4
+        jr    epc
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://discord.gg/rPK2nSjxy8)
+Or if it's quick and doesn't want to be reentrant:
+	
+	.... handle interrupt, don't turn interrupts on while processing
+        jr    epc
 
-## What next?
 
-- Share your GDS on Twitter, tag it [#tinytapeout](https://twitter.com/hashtag/tinytapeout?src=hashtag_click) and [link me](https://twitter.com/matthewvenn)!
+## Differences from RISC-V C extension
+
+- Memory instructions only come in lw/sw and lb/sb versions (lb/sb replace ld/sd) words are 16 or 32-bits
+- offsets one lw/sw instructions are multiples of 2 or 4 bytes depending on the word size
+- instructions that have 5-bit register fields are now 4-bit (or 3 in some cases), those unused bits are
+repurposed into upper bits of constants or offsets
+- addisp4n (now called "lea") is an offset of 2 or 4 depending on word size
+- addi16sp (now called "add sp, V") is a multiple of 2 or 4 depending on word size
+- srl/sra/sll shift by 1 bit
+- lwsp (et al) (now called "lw r, of(sp)" has offsets which are multiples of 2/4 depending on word size
+- bgez and bltz have been added
+
+Register numbers:
+|Register|3-bit number|4-bit number|
+|:-------|:----------:|-----------:|
+|0 |-|0|
+|lr|-|1|
+|sp|-|2|
+|epc|-|3|
+|csr|-|4|
+|s0|0|8|
+|s1|1|9|
+|a0|2|10|
+|a1|3|11|
+|a2|4|12|
+|a3|5|13|
+|a4|6|14|
+|a5|7|15|
+
+## Encodings
+
+|15:13|12   |11   |10   |9:7  |6:5  |4:2  |1:0  |Instruction |
+|:----|:---:|:---:|:---:|:---:|:---:|:---:|:---:|-----------:|
+|000  |0    |0    |0    |0    |0    |0    |00   | illegal instruction 	|
+|000  |C    |C    |C    |C    |C    |RD   |00   | lea RD, C(SP)         |
+|010  |C    |C    |C    |RS1  |C    |RD   |00   | lw RD, C(RS1)		|   
+|011  |C    |C    |C    |RS1  |C    |RD   |00   | lb RD, C(RS1)		|   
+|110  |C    |C    |C    |RS1  |C    |RS2  |00   | sw RS2, C(RS1)	|   
+|111  |C    |C    |C    |RS1  |C    |RS2  |00   | sb RS2, C(RS1)	|   
+|000  |0    |0    |0    |0    |0    |0    |01   | nop		 	|
+|000  |C    |C    |C    |RD   |C    |C    |01   | add RD, C		|   
+|001  |C    |C    |C    |C    |C    |C    |01   | jal PC+C		|   
+|010  |C    |C    |C    |RD   |C    |C    |01   | li RD, C		|   
+|011  |C    |C    |0    |2    |C    |C    |01   | add sp, C		|   
+|011  |C    |C    |1    |RD   |C    |C    |01   | lui RD, C		|   
+|100  |0    |0    |0    |RD   |0    |0    |01   | srl RD		|   
+|100  |0    |0    |1    |RD   |0    |0    |01   | sra RD		|   
+|100  |C    |1    |0    |RD   |C    |C    |01   | and RD, C		|   
+|100  |0    |1    |1    |RD   |00   |RS2  |01   | sub RD, RS2		|   
+|100  |0    |1    |1    |RD   |01   |RS2  |01   | xor RD, RS2		|   
+|100  |0    |1    |1    |RD   |10   |RS2  |01   | or RD, RS2		|   
+|100  |0    |1    |1    |RD   |11   |RS2  |01   | and RD, RS2		|   
+|101  |C    |C    |C    |C    |C    |C    |01   | j PC+C		|   
+|110  |C    |C    |C    |RS1  |C    |C    |01   | beqz PC+C		|   
+|111  |C    |C    |C    |RS1  |C    |C    |01   | bnez PC+C		|   
+|000  |0    |0    |0    |RD   |0    |0    |10   | sll RD	 	|
+|010  |C    |C    |C    |RD   |C    |C    |10   | lw RD, C(sp)		|   
+|011  |C    |C    |C    |RD   |C    |C    |10   | lb RD, C(sp)		|   
+|100  |0    |0    |0    |RS1  |0    |0    |10   | jr RS1		|   
+|100  |0    |0    |RD   |RD   |0,RS2|RS2  |10   | mv RD, RS2		|   
+|100  |1    |0    |0    |RS1  |0    |0    |10   | jalr RS1		|   
+|100  |1    |0    |0    |RD   |0    |RS2  |10   | add RD, RS2		|   
+|110  |C    |C    |C    |C    |C    |RS2  |10   | sw RS2, C(sp)		|   
+|111  |C    |C    |C    |C    |C    |RS2  |10   | sb RS2, C(sp)		|   
+|110  |C    |C    |C    |RS1  |C    |C    |11   | bgez PC+C		|   
+|111  |C    |C    |C    |RS1  |C    |C    |11   | bltz PC+C		|   
