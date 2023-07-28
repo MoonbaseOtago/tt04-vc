@@ -26,6 +26,8 @@ l:		add a1, -1
 	sb 	a0, 3(a2)	
 	lw	a4, 2(a2)	// 5599
 	sw	a4, (a5)
+	lb	a1, 3(a2)	// 0055
+	sw	a1, (a5)
 
 	li	a0, 0x33
 	li	a2, 0x55

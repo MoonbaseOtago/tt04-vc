@@ -267,7 +267,7 @@ module decode(input clk, input reset,
 					end
 			3'b010:	begin	// lwsp  **
 						c_load = 1;
-						c_cond[0] = 0;
+						c_cond = 3'bxx0;
 						c_op = `OP_ADD;
 						c_rd = ins[10:7];
 						c_rs1 = 2;
@@ -279,7 +279,7 @@ module decode(input clk, input reset,
 					end
 			3'b011:	begin	// lbsp  **
 						c_load = 1;
-						c_cond[0] = 1;
+						c_cond = 3'bxx1;
 						c_op = `OP_ADD;
 						c_rd = ins[10:7];
 						c_rs1 = 2;
@@ -326,7 +326,7 @@ module decode(input clk, input reset,
 					end
 			3'b110:	begin	// swsp  **
 						c_store = 1;
-						c_cond[0] = 0;
+						c_cond = 3'bxx0;
 						c_rs2 = ins[10:7];
 						c_op = `OP_ADD;
 						c_rs1 = 2;
@@ -338,7 +338,7 @@ module decode(input clk, input reset,
 					end
 			3'b111:	begin	// sbsp  **
 						c_store = 1;
-						c_cond[0] = 1;
+						c_cond = 3'bxx1;
 						c_rs2 = ins[10:7];
 						c_rs1 = 2;
 						c_op = `OP_ADD;
@@ -404,7 +404,7 @@ module execute(input clk, input reset,
 		output	[RV-1:0]wdata,
 		input			wdone,
 		output	[(RV/8)-1:0]wmask,
-		output			rstrobe,	
+		output	[1:0]	rstrobe,	
 		output			ifetch,	
 		input			rdone,
 		input	[RV-1:0]rdata
@@ -412,7 +412,7 @@ module execute(input clk, input reset,
 	parameter RV=32;
 
 	assign pc = r_pc;
-	assign rstrobe = r_read_stall;
+	assign rstrobe = {r_read_stall&(~cond[0]|r_wb[0]), r_read_stall&(~cond[0]|~r_wb[0])};
 	assign ifetch = r_fetch;
 	assign wdata = r_wdata;
 	assign addr = r_wb[RV-1:1];
@@ -592,7 +592,7 @@ endmodule
 module cpu(input clk, input reset_in,
 		input interrupt,
 		output [RV-1:RV/16]raddr,
-		output	rreq,
+		output	[1:0]rreq,
 		input	rdone,
 		input [RV-1:0]rdata,
 		output [RV-1:RV/16]waddr,
@@ -602,10 +602,11 @@ module cpu(input clk, input reset_in,
 
 	parameter RV=16;
 
-	assign raddr = rstrobe?addr[RV-1:RV/16]:pc[RV-1:RV/16];
+	wire [ 1:0]rstrobe;
+	assign raddr = |rstrobe?addr[RV-1:RV/16]:pc[RV-1:RV/16];
 	assign waddr = addr[RV-1:RV/16];
 	
-	assign rreq=ifetch|rstrobe;
+	assign rreq={ifetch, ifetch}|rstrobe;
 
 	wire reset = reset_in;
 	//wire reset = r_reset;
@@ -628,7 +629,6 @@ module cpu(input clk, input reset_in,
 	wire [RV-1:1]pc;
 	wire [RV-1:RV/16]addr;
 	wire [15:0]ins;
-	wire         rstrobe;
 	wire		 iready;
 	wire		 ifetch;
 	generate 
@@ -643,7 +643,7 @@ module cpu(input clk, input reset_in,
 	decode #(.RV(RV))dec(.clk(clk), .reset(reset),
 		.ins(ins),
 		.iready(iready),
-		.rdone(rdone&!rstrobe),
+		.rdone(rdone&!(|rstrobe)),
 		.jmp(jmp),
 		.br(br),
 		.cond(cond),
