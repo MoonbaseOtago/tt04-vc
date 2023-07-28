@@ -607,10 +607,11 @@ module cpu(input clk, input reset_in,
 	
 	assign rreq=ifetch|rstrobe;
 
-
-	reg r_reset;
-	always @(posedge clk)
-		r_reset <= reset_in;
+	wire reset = reset_in;
+	//wire reset = r_reset;
+	//reg r_reset;
+	//always @(posedge clk)
+		//r_reset <= reset_in;
 
 	wire		jmp;
 	wire		br; 
@@ -639,7 +640,7 @@ module cpu(input clk, input reset_in,
 	endgenerate
 
 
-	decode #(.RV(RV))dec(.clk(clk), .reset(r_reset),
+	decode #(.RV(RV))dec(.clk(clk), .reset(reset),
 		.ins(ins),
 		.iready(iready),
 		.rdone(rdone&!rstrobe),
@@ -657,7 +658,7 @@ module cpu(input clk, input reset_in,
 		.needs_rs2(needs_rs2), 
 		.imm(imm));
 
-	execute #(.RV(RV))ex(.clk(clk), .reset(r_reset),
+	execute #(.RV(RV))ex(.clk(clk), .reset(reset),
 		.interrupt(interrupt),
 		.pc(pc),
 		.ifetch(ifetch),

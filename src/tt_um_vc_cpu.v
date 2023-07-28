@@ -19,6 +19,9 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 	wire rdone, wdone, rreq;
 	wire [(RV/8)-1:0]wmask;
 
+	reg r_reset;
+	always @(posedge clk)
+		r_reset <= ~rst_n;
 	reg [2:0]r_state;
 	reg [7:0]r_out;
 	assign uo_out = r_out;
@@ -33,7 +36,7 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 	assign uio_out = {4'b0000, r_latch_lo, r_latch_hi, r_write, r_ind};
 	wire interrupt = uio_in[7]; 
 	always @(posedge clk)
-	if (!rst_n) begin
+	if (r_reset) begin
 		r_state <= 0;		
 		r_latch_lo <= 0;
 		r_latch_hi <= 0;
@@ -106,7 +109,7 @@ module tt_um_vc_cpu #( parameter MAX_COUNT = 24'd10_000_000 ) (
 	endcase
 
 
-	cpu   #(.RV(RV))cpu(.clk(clk), .reset_in(~rst_n|!ena), 
+	cpu   #(.RV(RV))cpu(.clk(clk), .reset_in(r_reset|!ena), 
 			.interrupt(interrupt),
 			.raddr(raddr),
 			.rdata(rdata),
