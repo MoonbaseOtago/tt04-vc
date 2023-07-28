@@ -34,7 +34,7 @@ int imm6(int v)
 		errs++;
 		fprintf(stderr, "%d: invalid constant (must be >=0 <64)\n", line);
 	}
-	return(((v&0x1f)<<2) | (((v>>5)&1)<<12));
+	return(((v&0x3)<<5) | (((v>>2)&3)<<3) |(((v>>4)&1)<<12) | (((v>>5)&1)<<2));
 }
 
 int imm8(int v, int l)
@@ -45,7 +45,7 @@ int imm8(int v, int l)
 		errs++;
 		fprintf(stderr, "%d: invalid constant (must be >=-128 <128)\n", (l?l:line));
 	}
-	return(((v&0x1f)<<2) | (((v>>5)&1)<<12)| (((v>>6)&1)<<10)|(((v>>7)&1)<<11));
+	return(((v&0x3)<<5) | (((v>>2)&7)<<10)| (((v>>5)&7)<<2));
 }
 
 int roffX(int v)
@@ -108,7 +108,7 @@ int offX(int v)
 		}
 		v >>= 1;
 	}	
-	return ( ((v&7)<<4)  | (((v>>3)&1)<<12) | (((v>>4)&3)<<10|(((v>>6)&1)<<11)));
+	return ( ((v&1)<<6)  | (((v>>1)&1)<<5) | (((v>>2)&3)<<11|(((v>>4)&7)<<2)));
 }
 
 int off(int v)
@@ -119,7 +119,7 @@ int off(int v)
 		return 0;
 	}
 	if (bit32) {
-		return ( ((v&1)<<3)  | (((v>>1)&1)<<11) | (((v>>2)&7)<<4)|(((v>>5)&1)<<12)|(((v>>6)&1)<<2));
+		return ( ((v&1)<<4)  | (((v>>1)&1)<<6)  | (((v>>2)&1)<<5) | (((v>>3)&3)<<11|(((v>>5)&3)<<2)));
 	} else {
 		return ( ((v&1)<<11)  | (((v>>1)&7)<<4)|(((v>>4)&1)<<12)|(((v>>5)&3)<<2));
 	}	
@@ -172,7 +172,7 @@ int addsp(int v)
 		}
 		v >>= 1;
 	}	
-	return ( ((v&1)<<6)  | (((v>>1)&1)<<2) | (((v>>2)&1)<<5)|(((v>>3)&3)<<3) | (((v>>5)&1)<<12)|(((v>>6)&1)<<11) );
+	return ( ((v&1)<<6)  | (((v>>1)&1)<<5) | (((v>>2)&3)<<11)|(((v>>4)&7)<<2) );
 }
 
 int luioff(int v, int l)
@@ -200,7 +200,7 @@ int lioff(int v)
 		fprintf(stderr, "%d: invalid constant (must be signed 7 bits)\n", line);
 		return 0;
 	}
-	return (((v&0x1f)<<2)| (((v>>5)&1)<<12) | (((v>>6)&1)<<10) | (((v>>7)&1)<<11));
+	return(((v&0x3)<<5) | (((v>>2)&7)<<10)| (((v>>5)&7)<<2));
 }
 
 int yylex(void);

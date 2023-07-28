@@ -187,7 +187,7 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rs1 = {1'b1, ins[9:7]};
 						c_rd = {1'b1, ins[9:7]};
-						c_imm = {{(RV-7){ins[11]}}, ins[10],  ins[12], ins[6:2]};
+						c_imm = {{(RV-7){ins[4]}}, ins[3:2],  ins[12:10], ins[6:5]};
 					end
 			3'b001:	begin	// jal
 						c_br = 1;
@@ -201,7 +201,7 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rs1 = 0;
 						c_rd = {1'b1, ins[9:7]};
-						c_imm = {{(RV-7){ins[11]}}, ins[10],  ins[12], ins[6:2]};
+						c_imm = {{(RV-7){ins[4]}}, ins[3:2],  ins[12:10], ins[6:5]};
 					end
 			3'b011:	if (ins[10:7] == 2) begin	// addi4sp  ** 
 						c_alu = 1;
@@ -209,9 +209,9 @@ module decode(input clk, input reset,
 						c_rd = 2;
 						c_rs1 = 2;
 						if (RV==16) begin
-							c_imm = {{(RV-7){ins[11]}},ins[12],ins[4:3],ins[5],ins[2],ins[6],1'b0};
+							c_imm = {{(RV-7){ins[4]}},ins[3:2],ins[12:11],ins[5],ins[6],1'b0};
 						end else begin
-							c_imm = {{(RV-8){ins[11]}},ins[12],ins[4:3],ins[5],ins[2],ins[6],2'b00};
+							c_imm = {{(RV-8){ins[4]}},ins[3:2],ins[12:11],ins[5],ins[6],2'b00};
 						end
 					end else begin				// lui **
 						c_alu = 1;
@@ -224,7 +224,7 @@ module decode(input clk, input reset,
 						c_rd = {1'b1, ins[9:7]};
 						c_rs1 = {1'b1, ins[9:7]};
 						c_rs2 = {1'b1, ins[4:2]};
-						c_imm = {{(RV-6){1'b0}}, ins[12],  ins[6:2]};
+						c_imm = {{(RV-6){1'b0}}, ins[2], ins[12], ins[4:3], ins[6:5]};
 						c_alu = 1;
 						case (ins[11:10]) // synthesis full_case parallel_case
 						2'b00: c_op = `OP_SRL;
@@ -272,9 +272,9 @@ module decode(input clk, input reset,
 						c_rd = ins[10:7];
 						c_rs1 = 2;
 						if (RV == 16) begin
-							c_imm = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
+							c_imm = {{(RV-8){1'b0}}, ins[4:2], ins[12:11], ins[5],ins[6], 1'b0};
 						end else begin
-							c_imm = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
+							c_imm = {{(RV-9){1'b0}}, ins[4:2], ins[12:11], ins[5],ins[6], 2'b0};
 						end
 					end
 			3'b011:	begin	// lbsp  **
@@ -284,7 +284,7 @@ module decode(input clk, input reset,
 						c_rd = ins[10:7];
 						c_rs1 = 2;
 						if (RV == 16) begin
-							c_imm = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
+							c_imm = {{(RV-7){1'b0}},          ins[3:2], ins[12:11],ins[5], ins[6], ins[4]};
 						end else begin
 							c_imm = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
 						end
@@ -331,9 +331,9 @@ module decode(input clk, input reset,
 						c_op = `OP_ADD;
 						c_rs1 = 2;
 						if (RV == 16) begin
-							c_imm = {{(RV-8){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 1'b0};
+							c_imm = {{(RV-8){1'b0}}, ins[4:2], ins[12:11], ins[5],ins[6], 1'b0};
 						end else begin
-							c_imm = {{(RV-9){1'b0}}, ins[11], ins[3:2], ins[12],ins[6:4], 2'b0};
+							c_imm = {{(RV-9){1'b0}}, ins[4:2], ins[12:11], ins[5],ins[6], 2'b0};
 						end
 					end
 			3'b111:	begin	// sbsp  **
@@ -343,7 +343,7 @@ module decode(input clk, input reset,
 						c_rs1 = 2;
 						c_op = `OP_ADD;
 						if (RV == 16) begin
-							c_imm = {{(RV-7){1'b0}},          ins[3:2], ins[12],ins[6:4], ins[11]};
+							c_imm = {{(RV-7){1'b0}},          ins[3:2], ins[12:11],ins[5], ins[6], ins[4]};
 						end else begin
 							c_imm = {{(RV-7){1'b0}},          ins[2],   ins[12],ins[6:4], ins[11], ins[3]};
 						end
@@ -708,7 +708,25 @@ module test;
 	end
 	main m(.clk(clk), .reset_in(reset));
 endmodule
+
+16
+
+9 8 7 5 12 11 10 6 -
+      5 12 11 10 6 -
+        12 11 10 6 5
+      5 12 11 10 6 -
+        12 11 10 6 5
+
+  4 3 2 12 11 10 6 5     
+  4 3 2 12 11 5  6 -    
+      2 12 4  3  6 5 // and rd, c
+
+  4 3 2 12 11 5  6 - // lw rd, c(sp)
+    3 2 12 11 5  6 4 // lb rd, c(sp)
+
 `endif
+
+
 
 /* For Emacs:
  * Local Variables:
